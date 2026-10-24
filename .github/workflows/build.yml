@@ -11,6 +11,7 @@ on:
 
 permissions:
   issues: write
+  contents: write
 
 jobs:
   build:
@@ -45,6 +46,18 @@ jobs:
         with:
           name: app-release-unsigned
           path: app/build/outputs/apk/release/*.apk
+
+      - name: Publish rolling CI release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-latest
+          name: Latest CI build
+          body: 'Automated build from main. Commit: ' + github.sha + ''
+          prerelease: true
+          files: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Open issue on failure
         if: failure()
