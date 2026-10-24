@@ -35,7 +35,7 @@ public class FileStructureJsonParser {
         this.context = context;
     }
 
-    public HashMap<String, Folder> parse(JSONObject jsonData) {
+    public HashMap<String, Folder> parse(JSONObject jsonData) throws JSONException {
         HashMap<String, Folder> files = new HashMap<>();
         files.put("~", new Folder("~", "~"));
 
