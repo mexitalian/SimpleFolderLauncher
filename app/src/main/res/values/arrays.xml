@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="pref_app_alignment">
-        <item>start</item>
-        <item>end</item>
+        <item>left</item>
+        <item>right</item>
     </string-array>
     <string-array name="pref_app_alignment_values">
-        <item>start</item>
-        <item>end</item>
+        <item>left</item>
+        <item>right</item>
     </string-array>
     <string-array name="pref_doubletap">
         <item>none</item>

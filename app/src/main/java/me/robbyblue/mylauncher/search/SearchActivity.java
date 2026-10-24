@@ -51,11 +51,14 @@ public class SearchActivity extends Activity {
         setContentView(R.layout.activity_search);
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        int backgroundColor = prefs.getInt("pref_background_color", Color.BLACK);
+        findViewById(R.id.background).setBackgroundColor(backgroundColor);
+
         boolean autoOpenOnlyResult = prefs.getBoolean("pref_search_auto_open_only", false);
         boolean showShortcuts = prefs.getBoolean("pref_search_show_shortcuts", true);
         boolean normalizeAccents = prefs.getBoolean("pref_search_normalize_umlaute", true);
 
-        int appTextColor = prefs.getInt("pref_app_text_color", Color.parseColor("#EEEEEE"));
+        int appTextColor = prefs.getInt("pref_app_text_color", Color.parseColor("#FFFFFF"));
 
         searchableItems = indexSearchableItems(showShortcuts, normalizeAccents);
 

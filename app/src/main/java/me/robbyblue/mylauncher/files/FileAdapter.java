@@ -41,10 +41,10 @@ public class FileAdapter extends RecyclerView.Adapter<FileViewHolder> {
     @NonNull
     public FileViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(parent.getContext());
-        this.textAlignment = prefs.getString("pref_app_text_alignment", "start");
-        this.appTextColor = prefs.getInt("pref_app_text_color", Color.parseColor("#EEEEEE"));
-        this.folderTextColor = prefs.getInt("pref_folder_text_color", Color.parseColor("#00CC00"));
-        this.backTextColor = prefs.getInt("pref_back_text_color", Color.parseColor("#00CC00"));
+        this.textAlignment = prefs.getString("pref_app_text_alignment", "left");
+        this.appTextColor = prefs.getInt("pref_app_text_color", Color.parseColor("#FFFFFF"));
+        this.folderTextColor = prefs.getInt("pref_folder_text_color", Color.parseColor("#FFFFFF"));
+        this.backTextColor = prefs.getInt("pref_back_text_color", Color.parseColor("#FFFFFF"));
         return new FileViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_file, parent, false));
     }
 
@@ -93,7 +93,8 @@ public class FileAdapter extends RecyclerView.Adapter<FileViewHolder> {
             return false;
         });
 
-        if (this.textAlignment.equals("end")) {
+        // "end" is the pre-left/right wording, kept so existing installs don't reset
+        if ("end".equals(textAlignment) || "right".equals(textAlignment)) {
             int margin = (int) TypedValue.applyDimension(
                     TypedValue.COMPLEX_UNIT_DIP, 8, holder.view.getResources().getDisplayMetrics());
 

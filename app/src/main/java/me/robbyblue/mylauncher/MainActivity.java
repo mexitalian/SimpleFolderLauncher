@@ -7,6 +7,7 @@ import android.appwidget.AppWidgetProviderInfo;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -113,6 +114,10 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         folderPathView = findViewById(R.id.folder_path_text);
+
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        int backgroundColor = prefs.getInt("pref_background_color", Color.BLACK);
+        findViewById(R.id.background).setBackgroundColor(backgroundColor);
 
         IconPackManager.getInstance(getPackageManager());
         File structureFile = new File(getFilesDir(), "filesstructure.json");
