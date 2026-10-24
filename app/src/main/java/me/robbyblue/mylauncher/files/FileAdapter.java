@@ -93,8 +93,9 @@ public class FileAdapter extends RecyclerView.Adapter<FileViewHolder> {
             return false;
         });
 
-        // "end" is the pre-left/right wording, kept so existing installs don't reset
-        if ("end".equals(textAlignment) || "right".equals(textAlignment)) {
+        // "left" puts the name text on the left, with the icon on the right edge.
+        // "end" is the pre-left/right wording, kept so existing installs don't reset.
+        if ("left".equals(textAlignment) || "end".equals(textAlignment)) {
             int margin = (int) TypedValue.applyDimension(
                     TypedValue.COMPLEX_UNIT_DIP, 8, holder.view.getResources().getDisplayMetrics());
 

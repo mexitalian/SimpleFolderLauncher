@@ -19,7 +19,7 @@
         android:layout_centerVertical="true"
         android:layout_marginStart="8dp"
         android:layout_toEndOf="@id/icon_view"
-        android:fontFamily="sans-serif"
+        android:fontFamily="sans-serif-light"
         android:letterSpacing="0.02"
         android:textSize="30sp" />
 

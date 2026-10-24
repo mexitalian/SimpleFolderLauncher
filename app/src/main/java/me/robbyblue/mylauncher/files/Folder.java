@@ -26,10 +26,10 @@ public class Folder extends FileNode {
         String name = getName();
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean prefShowTrailingSlash = prefs.getBoolean("pref_show_trailing_slash", false);
+        boolean prefShowTrailingSlash = prefs.getBoolean("pref_show_trailing_slash", true);
 
-        if(prefShowTrailingSlash) {
-            name += "/";
+        if (prefShowTrailingSlash) {
+            name += " /";
         }
         return name;
     }
