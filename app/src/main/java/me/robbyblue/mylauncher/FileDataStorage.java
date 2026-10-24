@@ -1,12 +1,7 @@
 package me.robbyblue.mylauncher;
 
 import android.content.Context;
-import android.os.Process;
-import android.os.UserHandle;
-import android.os.UserManager;
 
-import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -18,18 +13,17 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Queue;
 
 import me.robbyblue.mylauncher.files.AppFile;
 import me.robbyblue.mylauncher.files.FileNode;
 import me.robbyblue.mylauncher.files.Folder;
-import me.robbyblue.mylauncher.files.icons.IconData;
-import me.robbyblue.mylauncher.widgets.WidgetElement;
-import me.robbyblue.mylauncher.widgets.WidgetLayout;
-import me.robbyblue.mylauncher.widgets.WidgetList;
 
+/**
+ * Holds the launcher's folder structure and provides tree operations
+ * (create/rename/move/remove). JSON parsing lives in
+ * {@link FileStructureJsonParser}, serialization in
+ * {@link FileStructureJsonSerializer}.
+ */
 public class FileDataStorage {
 
     private Context context;
@@ -90,191 +84,37 @@ public class FileDataStorage {
         return new FileDataStorage(inputStream, context);
     }
 
+    private FileStructureJsonParser getParser() {
+        return new FileStructureJsonParser(context);
+    }
+
+    private FileStructureJsonSerializer getSerializer() {
+        return new FileStructureJsonSerializer(context);
+    }
+
+    // ---- loading / saving ----
+
     public void loadFromInputStream(InputStream inputStream) {
         try {
             String fileContents = readInputStream(inputStream);
-
             JSONObject jsonData = new JSONObject(fileContents);
             loadFromJson(jsonData);
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     public void loadFromJson(JSONObject jsonData) {
         try {
-            HashMap<String, Folder> files = new HashMap<>();
-            files.put("~", new Folder("~", "~"));
-
-            Iterator<String> iterator = jsonData.keys();
-            while (iterator.hasNext()) {
-                String folderName = iterator.next();
-                if (jsonData.get(folderName) instanceof JSONObject) {
-                    try {
-                        JSONObject folderContentsJson = jsonData.getJSONObject(folderName);
-                        files.put(folderName, parseFolder(folderContentsJson, folderName));
-                    } catch (Exception e) {
-
-                    }
-                } else {
-                    try {
-                        JSONArray folderContentsJson = jsonData.getJSONArray(folderName);
-                        Folder folder = new Folder(folderName, folderName);
-                        folder.getFiles().addAll(parseFilesList(folderContentsJson, folderName));
-                        files.put(folderName, folder);
-                    } catch (Exception e) {
-
-                    }
-                }
-            }
-
-            this.files = files;
-            deleteBadFolders();
-            clearOrphans();
+            this.files = getParser().parse(jsonData);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private void clearOrphans() {
-        ArrayList<String> usedPaths = new ArrayList<>();
-        Queue<String> uncheckedPaths = new LinkedList<>();
-
-        usedPaths.add("~");
-        uncheckedPaths.add("~");
-
-        while (uncheckedPaths.size() > 0) {
-            String testFullPath = uncheckedPaths.remove();
-            for (FileNode file : getFolderContents(testFullPath).getFiles()) {
-                if (!(file instanceof Folder)) continue;
-                String fullPath = ((Folder) file).getFullPath();
-                usedPaths.add(fullPath);
-                uncheckedPaths.add(fullPath);
-            }
-        }
-
-        files.keySet().removeIf(pathKey -> !usedPaths.contains(pathKey));
-    }
-
-    /**
-     * caused by some bug, it would happen that a folder links
-     * to child while said child doesn't exist anymore.
-     * this function deletes all those folder
-     */
-    private void deleteBadFolders() {
-        for (Folder folder : files.values()) {
-            ArrayList<FileNode> folderFiles = folder.getFiles();
-            Iterator<FileNode> iterator = folderFiles.iterator();
-            while (iterator.hasNext()) {
-                FileNode fileNode = iterator.next();
-                if (!(fileNode instanceof Folder)) {
-                    continue;
-                }
-                String filePath = ((Folder) fileNode).getFullPath();
-                if (files.containsKey(filePath)) {
-                    continue;
-                }
-                iterator.remove();
-            }
-        }
-    }
-
-    private Folder parseFolder(JSONObject folderContentsJson, String folderName) throws JSONException {
-        Folder folder = new Folder(folderName, folderName);
-        try {
-            folder.getFiles().addAll(parseFilesList(folderContentsJson.getJSONArray("files"), folderName));
-        } catch (Exception e) {
-
-        }
-
-        if (folderContentsJson.has("widgetIds")) {
-            JSONArray widgetIds = folderContentsJson.getJSONArray("widgetIds");
-            for (int i = 0; i < widgetIds.length(); i++) {
-                WidgetElement widgetElement = new WidgetElement(widgetIds.getInt(i));
-                folder.getWidgetList().addChild(widgetElement);
-            }
-        } else if (folderContentsJson.has("widgets")) {
-            try {
-                folder.setWidgetList(parseWidgetList(folderContentsJson.getJSONObject("widgets")));
-            } catch (Exception e) {
-
-            }
-        }
-        return folder;
-    }
-
-    private ArrayList<FileNode> parseFilesList(JSONArray folderContentsJson, String folderName) throws JSONException {
-        ArrayList<String> folderNames = new ArrayList<>();
-        ArrayList<FileNode> files = new ArrayList<>();
-        for (int i = 0; i < folderContentsJson.length(); i++) {
-            try {
-                JSONObject fileNodeJson = folderContentsJson.getJSONObject(i);
-                String name = fileNodeJson.getString("name");
-                if (!FileNode.isValidName(name)) {
-                    continue;
-                }
-                if (fileNodeJson.getString("type").equals("file")) {
-                    String packageName = fileNodeJson.getString("package");
-
-                    UserHandle user;
-
-                    if (fileNodeJson.has("userHandleSerialNumber")) {
-                        UserManager manager = (UserManager) context.getSystemService(Context.USER_SERVICE);
-                        user = manager.getUserForSerialNumber(fileNodeJson.getLong("userHandleSerialNumber"));
-                    } else {
-                        user = Process.myUserHandle();
-                    }
-
-                    IconData iconData = IconData.createIconDataFromJson(fileNodeJson);
-                    files.add(new AppFile(name, packageName, iconData, user));
-                } else {
-                    if (folderNames.contains(name)) continue;
-                    files.add(new Folder(name, folderName + "/" + name));
-                    folderNames.add(name);
-                }
-            }catch (Exception e){
-
-            }
-        }
-        return files;
-    }
-
-    private WidgetList parseWidgetList(JSONObject jsonObject) throws JSONException {
-        WidgetList widgetList = new WidgetList();
-
-        widgetList.setSize(jsonObject.getDouble("size"));
-
-        JSONArray childrenArray = jsonObject.getJSONArray("children");
-        for (int i = 0; i < childrenArray.length(); i++) {
-            try {
-                JSONObject child = childrenArray.getJSONObject(i);
-
-                String type = child.getString("type");
-
-                if (type.equals("widget")) {
-                    WidgetElement element = parseWidgetElement(child);
-                    widgetList.addChild(element);
-                } else if (type.equals("list")) {
-                    WidgetList nestedList = parseWidgetList(child);
-                    widgetList.addChild(nestedList);
-                }
-            } catch (Exception e) {
-
-            }
-        }
-
-        return widgetList;
-    }
-
-    private WidgetElement parseWidgetElement(JSONObject jsonObject) throws JSONException {
-        WidgetElement widgetElement = new WidgetElement(jsonObject.getInt("widgetId"));
-        widgetElement.setSize(jsonObject.getDouble("size"));
-        return widgetElement;
-    }
-
     public void storeFilesStructure() {
         try {
-            JSONObject jsonData = getFileStructureAsJson();
+            JSONObject jsonData = getSerializer().toJson(files);
             writeFile(structureFile, jsonData.toString(2));
         } catch (Exception e) {
             e.printStackTrace();
@@ -282,120 +122,33 @@ public class FileDataStorage {
     }
 
     public JSONObject getFileStructureAsJson() {
-        try {
-            JSONObject jsonData = new JSONObject();
-            for (String folderName : files.keySet()) {
-                jsonData.put(folderName, jsonifyFilesStructureFolder(files.get(folderName)));
-            }
-            return jsonData;
-        } catch (Exception e) {
-            throw new RuntimeException();
-        }
-    }
-
-    private JSONObject jsonifyFilesStructureFolder(Folder folder) throws JSONException {
-        JSONObject folderObject = new JSONObject();
-        JSONArray filesArray = new JSONArray();
-        for (FileNode fileNode : folder.getFiles()) {
-            JSONObject fileJson = new JSONObject();
-            fileJson.put("name", fileNode.getName());
-            fileJson.put("icon", fileNode.getIconData().toJson());
-            if (fileNode instanceof AppFile) {
-                UserManager manager = (UserManager) context.getSystemService(Context.USER_SERVICE);
-                long serialNumber = manager.getSerialNumberForUser(((AppFile) fileNode).getUser());
-
-                fileJson.put("type", "file");
-                fileJson.put("package", ((AppFile) fileNode).getPackageName());
-                fileJson.put("userHandleSerialNumber", serialNumber);
-            } else if (fileNode instanceof Folder) {
-                fileJson.put("type", "folder");
-            }
-            filesArray.put(fileJson);
-        }
-        folderObject.put("files", filesArray);
-
-        try {
-            JSONObject widgetsArray = jsonifyWidgetList(folder.getWidgetList());
-            folderObject.put("widgets", widgetsArray);
-        } catch (Exception e) {
-
-        }
-
-        return folderObject;
-    }
-
-    private JSONObject jsonifyWidgetList(WidgetList widgetList) throws JSONException {
-        JSONArray childrenArray = new JSONArray();
-        for (WidgetLayout widgetLayout : widgetList.getChildren()) {
-            if (widgetLayout instanceof WidgetElement) {
-                try {
-                    childrenArray.put(jsonifyWidget((WidgetElement) widgetLayout));
-                } catch (Exception e) {
-
-                }
-            }
-            if (widgetLayout instanceof WidgetList) {
-                try {
-                    childrenArray.put(jsonifyWidgetList((WidgetList) widgetLayout));
-                } catch (Exception e) {
-
-                }
-            }
-        }
-
-        JSONObject widgetObject = new JSONObject();
-        widgetObject.put("type", "list");
-        widgetObject.put("size", widgetList.getSize());
-        widgetObject.put("children", childrenArray);
-
-        return widgetObject;
-    }
-
-    private JSONObject jsonifyWidget(WidgetElement widgetElement) throws JSONException {
-        JSONObject widgetObject = new JSONObject();
-        widgetObject.put("type", "widget");
-        widgetObject.put("size", widgetElement.getSize());
-        widgetObject.put("widgetId", widgetElement.getAppWidgetId());
-
-        return widgetObject;
+        return getSerializer().toJson(files);
     }
 
     public String getDataAsJsonString() {
         try {
-            JSONObject data = getFileStructureAsJson();
-            data = removeWidgetsFromJson(data);
-            return data.toString(2);
-        } catch (JSONException e) {
+            JSONObject data = getSerializer().toJson(files);
+            return getSerializer().removeWidgets(data).toString(2);
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public void importFromInputStream(InputStream is){
+    public void importFromInputStream(InputStream is) {
         try {
             String contents = readInputStream(is);
             JSONObject data = new JSONObject(contents);
 
-            data = removeWidgetsFromJson(data);
+            data = getSerializer().removeWidgets(data);
 
             loadFromJson(data);
             storeFilesStructure();
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private JSONObject removeWidgetsFromJson(JSONObject data){
-        try {
-            for (Iterator<String> it = data.keys(); it.hasNext(); ) {
-                String key = it.next();
-                data.getJSONObject(key).put("widgets", new JSONObject());
-            }
-        }catch (Exception e){
-            throw new RuntimeException(e);
-        }
-        return data;
-    }
-
+    // ---- tree operations ----
 
     public void createFile(String parentFolder, AppFile appFile) {
         ArrayList<FileNode> parentFolderContents = getFolderContents(parentFolder).getFiles();
@@ -494,12 +247,14 @@ public class FileDataStorage {
     }
 
     public Folder getFolderContents(String path) {
-        if(path.equals("~") && !files.containsKey(path) ) {
+        if (path.equals("~") && !files.containsKey(path)) {
             files.put("~", new Folder("~", "~"));
         }
         if (files.containsKey(path)) return files.get(path);
         return null;
     }
+
+    // ---- helpers ----
 
     private HashMap<String, Folder> createEmptyFolderStructure() {
         HashMap<String, Folder> files = new HashMap<>();

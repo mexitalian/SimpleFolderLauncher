@@ -1,6 +1,5 @@
 package me.robbyblue.mylauncher;
 
-import android.annotation.SuppressLint;
 import android.appwidget.AppWidgetHost;
 import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetManager;
@@ -8,7 +7,6 @@ import android.appwidget.AppWidgetProviderInfo;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.LauncherApps;
 import android.os.Bundle;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -19,9 +17,7 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -34,7 +30,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.io.File;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -50,7 +45,6 @@ import me.robbyblue.mylauncher.widgets.WidgetElement;
 import me.robbyblue.mylauncher.widgets.WidgetLayout;
 import me.robbyblue.mylauncher.widgets.WidgetList;
 import me.robbyblue.mylauncher.widgets.WidgetSystem;
-
 
 public class MainActivity extends AppCompatActivity {
 
@@ -127,6 +121,7 @@ public class MainActivity extends AppCompatActivity {
         appCache.loadAppsInFolder(this, dataStorage.getFolderContents("~"));
 
         setupUi();
+        LauncherAppsWatcher.register(this, appCache);
 
         new Thread(() -> {
             appCache.loadAllApps(this);
@@ -141,8 +136,6 @@ public class MainActivity extends AppCompatActivity {
         registerForContextMenu(recycler);
 
         recycler.setOnLongClickListener((l) -> false);
-
-        registerLauncherAppsCallback();
 
         OnBackPressedCallback callback = new OnBackPressedCallback(true) {
             @Override
@@ -173,24 +166,7 @@ public class MainActivity extends AppCompatActivity {
             searchLauncher.launch(intent);
             return true;
         } else if (velocityY > 1000) {
-            String panelMethod = "expandNotificationsPanel";
-            if (velocityY > 5000) {
-                panelMethod = "expandSettingsPanel";
-            }
-
-            // as per https://stackoverflow.com/questions/31897920/how-to-open-the-android-quick-notification-setting
-            try {
-                @SuppressLint("WrongConstant") Object service = getSystemService("statusbar");
-                Class<?> statusBarManager = Class.forName("android.app.StatusBarManager");
-
-                Method expand = statusBarManager.getMethod(panelMethod);
-                expand.invoke(service);
-            } catch (Exception e) {
-                String toastText = "couldn't open quick settings: " + e;
-                Toast toast = Toast.makeText(this, toastText, Toast.LENGTH_SHORT);
-                toast.show();
-                e.printStackTrace();
-            }
+            StatusBarExpander.expandPanel(this, velocityY > 5000);
             return true;
         }
         return false;
@@ -212,37 +188,6 @@ public class MainActivity extends AppCompatActivity {
                 break;
         }
         return true;
-    }
-
-    private void registerLauncherAppsCallback() {
-        LauncherApps launcherApps = (LauncherApps) getSystemService(LAUNCHER_APPS_SERVICE);
-        launcherApps.registerCallback(new LauncherApps.Callback() {
-            @Override
-            public void onPackageAdded(String packageName, UserHandle user) {
-                if (appCache == null) return;
-                appCache.indexPackage(packageName, MainActivity.this);
-            }
-
-            @Override
-            public void onPackageChanged(String packageName, UserHandle user) {
-                if (appCache == null) return;
-                appCache.indexPackage(packageName, MainActivity.this);
-            }
-
-            @Override
-            public void onPackageRemoved(String packageName, UserHandle user) {
-                if (appCache == null) return;
-                appCache.removePackage(packageName);
-            }
-
-            @Override
-            public void onPackagesAvailable(String[] packageNames, UserHandle user, boolean replacing) {
-            }
-
-            @Override
-            public void onPackagesUnavailable(String[] packageNames, UserHandle user, boolean replacing) {
-            }
-        });
     }
 
     @Override
@@ -394,11 +339,6 @@ public class MainActivity extends AppCompatActivity {
 
             hostView.updateAppWidgetSize(new Bundle(), minWidth, minHeight, maxWidth, maxHeight);
         }
-    }
-
-    private void setSize(RelativeLayout layout, int screenWidth) {
-        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(screenWidth / 2, screenWidth / 2);
-        layout.setLayoutParams(layoutParams);
     }
 
     public void setLongClickedID(int position) {
